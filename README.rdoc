@@ -1,4 +1,4 @@
-= Uniquify
+= Flickrx
 
 Ruby gem implementation of Flickr API.
 
