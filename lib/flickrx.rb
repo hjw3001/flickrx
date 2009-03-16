@@ -630,66 +630,220 @@ class Photos < Flickr
     }
   end
   
-  def get_info(photo_id)
-    method = 'flickr.photos.getInfo'
+  # <photo id="2477196681" secret="52159254f5" server="3293" farm="4">
+  #  <exif tagspace="TIFF" tagspaceid="1" tag="271" label="Make">
+  #   <raw>Canon</raw>
+  #  </exif>
+  #  <exif tagspace="TIFF" tagspaceid="1" tag="272" label="Model">
+  #   <raw>Canon EOS 20D</raw>
+  #   </exif>
+  #  <exif tagspace="TIFF" tagspaceid="1" tag="274" label="Orientation">
+  #   <raw>1</raw>
+  #   <clean>Horizontal (normal)</clean>
+  #  </exif>
+  #  <exif tagspace="TIFF" tagspaceid="1" tag="306" label="Date and Time">
+  #   <raw>2008:05:08 22:49:53</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="33434" label="Exposure">
+  #   <raw>30/1</raw>
+  #   <clean>30 sec (30)</clean>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="33437" label="Aperture">
+  #   <raw>71/10</raw>
+  #   <clean>f/7.1</clean>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="34850" label="Exposure Program">
+  #   <raw>1</raw>
+  #   <clean>Manual</clean>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="34855" label="ISO Speed">
+  #   <raw>100</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="36867" label="Date and Time (Original)">
+  #   <raw>2006:05:31 09:47:51</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="37377" label="Shutter Speed">
+  #   <raw>-4906891/1000000</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="37378" label="Aperture">
+  #   <raw>5655638/1000000</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="37386" label="Focal Length">
+  #   <raw>100/1</raw>
+  #   <clean>100 mm</clean>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="40961" label="Color Space">
+  #   <raw>1</raw>
+  #   <clean>sRGB</clean>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="40962" label="Pixel X-Dimension">
+  #   <raw>3504</raw>
+  #  </exif>
+  #  <exif tagspace="EXIF" tagspaceid="0" tag="40963" label="Pixel Y-Dimension">
+  #   <raw>2336</raw>
+  #  </exif>
+  # </photo>
+  def get_exif(photo_id)
+    method = 'flickr.photos.getExif'
     api_sig = _get_api_sig(
         {
-        'method'    => method,
-        'auth_token'    => config['token'],
-        'photo_id'    => photo_id
+        'method'     => method,
+        'auth_token' => config['token'],
+        'photo_id'   => photo_id
       }
     )
     data = _do_get(method, {
           'api_sig'    => api_sig,
-          'auth_token'    => config['token'],
-          'photo_id'    => photo_id
+          'auth_token' => config['token'],
+          'photo_id'   => photo_id
+        }
+      )
+    doc = Document.new(data)
+    doc.elements.each('rsp/photo') { |photo|
+      exif_arr = []
+      photos.elements.each('exif') { |exif|
+        exif_arr << {
+          'tagspace'   => exif.attributes['tagspace'],
+          'tagspaceid' => exif.attributes['tagspaceid'],
+          'tag'        => exif.attributes['tag'],
+          'label'      => exif.attributes['label'],
+          'raw'        => exif.elements['raw'].text,
+          'clean'      => exif.elements['clean'].text
+        }
+      }
+      return {
+        'id'     => photo.attributes['id'],
+        'secret' => photo.attributes['secret'],
+        'server' => photo.attributes['server'],
+        'farm'   => photo.attributes['farm'],
+        'exif'   => exif_arr
+      }
+    }  
+  end
+  
+  def get_info(photo_id)
+    method = 'flickr.photos.getInfo'
+    api_sig = _get_api_sig(
+        {
+        'method'     => method,
+        'auth_token' => config['token'],
+        'photo_id'   => photo_id
+      }
+    )
+    data = _do_get(method, {
+          'api_sig'    => api_sig,
+          'auth_token' => config['token'],
+          'photo_id'   => photo_id
         }
       )
     doc = Document.new(data)
     doc.elements.each('rsp/photo') { |photo|
       owner = photo.elements['owner']
-      date = photo.elements['dates']
+      visibility = photo.elements['visibility']
+      dates = photo.elements['dates']
+      permissions = photo.elements['permissions']
+      editability = photo.elements['editability']
+      usage = photo.elements['usage']
       tags = photo.elements['tags']
       tags_arr = []
       photo.elements.each('tags/tag') { |tag|
         tags_arr << {
-          'id'  => tag.attributes['id'],
-          'text'  => tag.text
+          'id'   => tag.attributes['id'],
+          'text' => tag.text
         }
       }
-      urls = photo.elements['urls']
       urls_arr = []
       photo.elements.each('urls/url') { |url|
         urls_arr << url.text
       }
       return {
-        'id'    => photo.attributes['id'],
-        'isfavorite'  => photo.attributes['isfavorite'],
-        'license'  => photo.attributes['license'],
-        'views'         => photo.attributes['views'],
-        'media'         => photo.attributes['media'],
-        'title'    => photo.elements['title'].text,
-        'owner_nsid'  => owner.attributes['nsid'],
-        'owner_username'=> owner.attributes['username'],
-        'owner_realname'=> owner.attributes['realname'],
-        'owner_location'=> owner.attributes['location'],
-        'date_posted'  => date.attributes['posted'],
-        'date_taken'  => date.attributes['taken'],
-        'tags'    => tags_arr,
-        'urls'    => urls_arr
+        'id'             => photo.attributes['id'],
+        'isfavorite'     => photo.attributes['isfavorite'],
+        'license'        => photo.attributes['license'],
+        'views'          => photo.attributes['views'],
+        'media'          => photo.attributes['media'],
+        'secret'         => photo.attributes['secret'],
+        'server'         => photo.attributes['server'],
+        'farm'           => photo.attributes['farm'],
+        'title'          => photo.elements['title'].text,
+        'description'    => photo.elements['description'].text,
+        'owner_nsid'     => owner.attributes['nsid'],
+        'owner_username' => owner.attributes['username'],
+        'owner_realname' => owner.attributes['realname'],
+        'owner_location' => owner.attributes['location'],
+        'ispublic'       => visibility.attributes['ispublic'],
+        'isfriend'       => visibility.attributes['isfriend'],
+        'isfamily'       => visibility.attributes['isfamily'],
+        'date_posted'    => dates.attributes['posted'],
+        'date_taken'     => dates.attributes['taken'],
+        'date_takengranularity'  => dates.attributes['takengranularity'],
+        'date_lastupdate'        => dates.attributes['lastupdate'],
+        'permission_permcomment' => permissions.attributes['permcomment'],
+        'permission_permaddmeta' => permissions.attributes['permaddmeta'],
+        'edit_cancomment'        => editability.attributes['cancomment'],
+        'edit_canaddmeta'        => editability.attributes['canaddmeta'],
+        'usage_candownload'      => usage.attributes['candownload'],
+        'usage_canblog'          => usage.attributes['canblog'],
+        'usage_canprint'         => usage.attributes['canprint'],
+        'tags'                   => tags_arr,
+        'urls'                   => urls_arr
       }
     }
   end
 
+  # <sizes canblog="1" canprint="1" candownload="1">
+  #   <size label="Square" width="75" height="75" source="<direct url to photo>" url="<url to flickr sizes page>" media="photo"/>
+  #   <size label="Thumbnail" width="100" height="67" source="<direct url to photo>" url="<url to flickr sizes page>" media="photo"/>
+  #   <size label="Small" width="240" height="160" source="<direct url to photo>" url="<url to flickr sizes page>" media="photo"/>
+  #   <size label="Medium" width="500" height="333" source="<direct url to photo>" url="<url to flickr sizes page>" media="photo"/>
+  #   <size label="Original" width="768" height="512" source="<direct url to photo>" url="<url to flickr sizes page>" media="photo"/>
+  # </sizes>
+  def get_sizes(photo_id)
+    method = 'flickr.photos.getSizes'
+    api_sig = _get_api_sig(
+        {
+        'method'     => method,
+        'auth_token' => config['token'],
+        'photo_id'   => photo_id
+      }
+    )
+    data = _do_get(method, {
+          'api_sig'    => api_sig,
+          'auth_token' => config['token'],
+          'photo_id'   => photo_id
+        }
+      )
+    doc = Document.new(data)
+    doc.elements.each('rsp/sizes') { |sizes|
+      size_arr = []
+      sizes.elements.each('size') { |size|
+        size_arr << {
+          'label'  => size.attributes['label'],
+          'width'  => size.attributes['width'],
+          'height' => size.attributes['height'],
+          'source' => size.attributes['source'],
+          'url'    => size.attributes['url'],
+        }
+      }
+      
+      return {
+        'canblog'     => sizes.attributes['canblog'],
+        'canprint'    => sizes.attributes['canprint'],
+        'candownload' => sizes.attributes['candownload'],
+        'sizes'       => size_arr
+      }        
+    }
+  end
+  
   def search(user_id, tags, tag_mode, page = 0, per_page = 500)
     method = 'flickr.photos.search'
     data = _do_get(method, {
           'api_key'  => @config['api_key'],
           'user_id'  => user_id,
-          'tags'    => tags,
-          'tag_mode'  => tag_mode,
-          'page'          => page,
-          'per_page'  => per_page
+          'tags'     => tags,
+          'tag_mode' => tag_mode,
+          'page'     => page,
+          'per_page' => per_page
           
         }
     )
@@ -697,14 +851,14 @@ class Photos < Flickr
     photos = []
     doc.elements.each('rsp/photos/photo') { |photo|
       photos << {
-        'id'    => photo.attributes['id'],
-        'owner'    => photo.attributes['owner']
+        'id'     => photo.attributes['id'],
+        'owner'  => photo.attributes['owner']
       }
     }
     return photos
   end
 
-        def removeTag(auth_token, tag_id)
+  def removeTag(auth_token, tag_id)
     method = 'flickr.photos.removeTag'
     api_sig = _get_api_sig(
         {
@@ -722,7 +876,7 @@ class Photos < Flickr
     if data
       return true
     end
-        end
+  end
 
 end
 
@@ -750,15 +904,15 @@ class People < Flickr
       }
       doc.elements.each('rsp/photos/photo') { |photo|
         photos << {
-          'id'    => photo.attributes['id'],
+          'id'       => photo.attributes['id'],
           'owner'    => photo.attributes['owner'],
-          'secret'  => photo.attributes['secret'],
-          'server'  => photo.attributes['server'],
-          'farm'    => photo.attributes['farm'],
+          'secret'   => photo.attributes['secret'],
+          'server'   => photo.attributes['server'],
+          'farm'     => photo.attributes['farm'],
           'title'    => photo.attributes['title'],
-          'ispublic'  => photo.attributes['ispublic'],
-          'isfriend'  => photo.attributes['isfriend'],
-          'isfamily'  => photo.attributes['isfamily']
+          'ispublic' => photo.attributes['ispublic'],
+          'isfriend' => photo.attributes['isfriend'],
+          'isfamily' => photo.attributes['isfamily']
         }
       }
       page = page + 1
@@ -802,25 +956,25 @@ class Upload < Flickr
     api_sig = _get_api_sig(
         {
         'auth_token'  => config['token'],
-        'title'    => title,
-        'description'  => description,
-        'tags'    => tags,
-        'is_public'  => is_public,
-        'is_family'  => is_family,
-        'is_friend'  => is_friend
+        'title'       => title,
+        'description' => description,
+        'tags'        => tags,
+        'is_public'   => is_public,
+        'is_family'   => is_family,
+        'is_friend'   => is_friend
       }
     )
     params = {
-      'api_key'  => config['api_key'],
-      'api_sig'  => api_sig,
+      'api_key'     => config['api_key'],
+      'api_sig'     => api_sig,
       'auth_token'  => config['token'],
-      'photo'    => file,
-      'title'    => title,
-      'description'  => description,
-      'tags'    => tags,
-      'is_public'  => is_public,
-      'is_family'  => is_family,
-      'is_friend'  => is_friend
+      'photo'       => file,
+      'title'       => title,
+      'description' => description,
+      'tags'        => tags,
+      'is_public'   => is_public,
+      'is_family'   => is_family,
+      'is_friend'   => is_friend
     }
     query, header = _prepare_query(params)
     file.close

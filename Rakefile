@@ -2,7 +2,7 @@ require 'rubygems'
 require 'rake'
 require 'echoe'
 
-Echoe.new('flickrx', '0.1.0') do |p|
+Echoe.new('flickrx', '0.1.1') do |p|
   p.description    = "Ruby implementation of Flickr API."
   p.url            = "http://github.com/hjw3001/flickrx"
   p.author         = "Henry Wagner"
